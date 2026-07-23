@@ -102,7 +102,7 @@ export default function CaptureView({ queue, onQueueChange, processing, progress
             onAnimationEnd={() => setFlash(false)}
           />
           <div className="absolute inset-x-3 top-[calc(12px+env(safe-area-inset-top))] text-center text-xs font-extrabold tracking-wide text-[#93c5fd] [text-shadow:0_1px_4px_#000]">
-            Fai entrare tutto il foglio: la foto viene raddrizzata da sola
+            Telefono in verticale: inquadra il blocco dati in alto a sinistra
           </div>
           {queue.length > 0 && (
             <div className="absolute top-[calc(12px+env(safe-area-inset-top))] right-3.5 flex h-8 items-center justify-center gap-1.5 rounded-2xl bg-primary px-3 text-sm font-extrabold text-white shadow-[0_2px_10px_rgba(0,0,0,0.55)]">
@@ -136,8 +136,7 @@ export default function CaptureView({ queue, onQueueChange, processing, progress
       )}
 
       <p className="mt-2.5 text-xs leading-relaxed text-muted">
-        Inquadra <b>solo la metà superiore orizzontale</b> del foglio e riempi il riquadro blu. Per più dettaglio,{' '}
-        <b>ruota il telefono in orizzontale</b>. Accumula più scatti, poi elabora tutto in blocco.
+        Tieni il telefono <b>in verticale</b> e inquadra <b>solo il blocco dati in alto a sinistra</b> del foglio (DDT SAP N/Data, WTG, Operation…), riempiendo il riquadro blu. Accumula più scatti, poi elabora tutto in blocco.
       </p>
 
       <div className="mt-3.5 grid grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-2">

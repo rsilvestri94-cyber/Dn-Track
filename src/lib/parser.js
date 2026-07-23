@@ -32,7 +32,9 @@ export function detectType(t) {
   // Tools va controllato per primo: condivide "Delivery note"/"Reference number"/26300001 con Project,
   // ma solo i DDT Tools hanno "Tools Warehouse" / "Form Header" / un secondo campo "DDT Number".
   if (/TOOLS WAREHOUSE/.test(u) || /FORM HEADER/.test(u) || /\bDDT NUMBER\b/.test(u)) return 'tools';
-  if (/CUSTOMER NUMBER S?26306(?!0001)/.test(u) || /DOCUMENTO DI TRASPORTO/.test(u)) return 'classic';
+  // il valore S26306xxx non è sempre adiacente all'etichetta "Customer Number" nel testo OCR
+  // (Google a volte legge prima tutte le etichette e poi tutti i valori): non richiediamo adiacenza.
+  if (/\bS?26306(?!0001)\d{3}\b/.test(u) || /DOCUMENTO DI TRASPORTO/.test(u)) return 'classic';
   if (/DELIVERY NOTE/.test(u) || /PROJECT NO/.test(u) || /REFERENCE NUMBER/.test(u) || /26300001/.test(u)) return 'project';
   return 'classic';
 }
@@ -58,16 +60,50 @@ function findTurbinePos(text) {
   return pos;
 }
 
-/** Estrae il valore del campo "Operation" (sul foglio Excel è la colonna Activity). */
+/**
+ * Estrae il valore del campo "Operation" (sul foglio Excel è la colonna Activity).
+ *
+ * L'OCR di Google Drive spesso NON mantiene etichetta e valore adiacenti su questo template:
+ * a volte legge prima tutte le etichette e poi tutti i valori, a volte scrive il valore di
+ * Operation PRIMA della propria etichetta, a volte "Turbine Description" è illeggibile
+ * (scritte a mano depennate, valore spezzato su due righe) e perde l'unico marcatore forte
+ * che lo identifica (l'underscore, es. "WEC_CAS14"). Nessun singolo punto di ancoraggio
+ * funziona sempre da solo, quindi si provano DUE ancoraggi indipendenti — fine di "Turbine
+ * Description" ed etichetta "Operation:" stessa — e si tiene il risultato più corto tra i
+ * due: l'ancoraggio sbagliato finisce quasi sempre per inglobare anche il testo di altri
+ * campi (più lungo), mentre quello giusto produce la frase breve reale.
+ */
 function findOperation(text) {
-  const stops = /\b(CONDIZIONI|Consegnare a|PESO|Pagina|Causale|Incoterms|Mittente)\b/i;
+  // Alcuni DDT stampano il template in inglese (Delivery note/Page/CONDITIONS/Shipping/Delivery)
+  // invece che in italiano: servono entrambi i set di marcatori. "Attn"/"MOB"/"Contrada" appartengono
+  // al blocco indirizzo "Consegnare a" a destra, che l'OCR a volte incolla nello stesso paragrafo.
+  const stops = /\b(CONDIZIONI|CONDITIONS|Consegnare a|PESO|Pagina|Page|Causale|Shipping|Incoterms|Delivery|Mittente|Attn|MOB|Contrada)\b/i;
   const flat = text.replace(/\s+/g, ' ');
-  const m = flat.match(/Operation:?\s*/i);
-  if (!m) return '';
-  let rest = flat.slice(m.index + m[0].length);
-  const s = rest.search(stops);
-  if (s > 0) rest = rest.slice(0, s);
-  return rest.trim();
+  const pageValMatch = flat.match(/\b\d+\s+of\s+\d+\b/i);
+
+  function segmentFrom(start) {
+    if (start == null || start < 0) return '';
+    const end = pageValMatch && pageValMatch.index >= start ? pageValMatch.index : flat.length;
+    let seg = flat.slice(start, end);
+    const s = seg.search(stops);
+    if (s >= 0) seg = seg.slice(0, s);
+    return seg.replace(/^\s*Operation:?\s*/i, '').trim();
+  }
+
+  const turbMatch = flat.match(/\b[A-Z][A-Za-z]*_[A-Za-z0-9_]+\b/);
+  const opMatch = flat.match(/Operation:?\s*/i);
+
+  const candidates = [];
+  if (turbMatch) candidates.push(segmentFrom(turbMatch.index + turbMatch[0].length));
+  if (opMatch) candidates.push(segmentFrom(opMatch.index + opMatch[0].length));
+
+  const valid = candidates.filter(Boolean);
+  if (!valid.length) return '';
+  let best = valid.reduce((a, b) => (b.length < a.length ? b : a));
+
+  // rete di sicurezza: un valore Operation reale è sempre una frase breve, mai un blocco indirizzo intero
+  if (best.length > 80) best = best.slice(0, 80).trim();
+  return best;
 }
 
 /** VAN nel blocco indirizzo dei DDT Tools/Project ("VAN SPECIAL 6820-...", niente "Customer Number Sxxxxx"). */
