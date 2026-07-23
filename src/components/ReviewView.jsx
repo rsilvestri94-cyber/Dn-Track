@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { List, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import { flags } from "../lib/parser.js";
 import {
     btnGhost,
@@ -45,8 +45,10 @@ function FieldInput({ row, fieldKey, label, onEdit }) {
     );
 }
 
-/** Select turbina raggruppato per parco (da anagrafica). Se il seriale/nome non è ancora censito, si passa a inserimento manuale (battesimo). */
-function TurbineField({ row, registry, onEdit }) {
+/** Select turbina raggruppato per parco (da anagrafica). Le turbine si aggiungono solo dalla pagina Anagrafica — qui solo scelta + refetch. */
+function TurbineField({ row, registry, onEdit, onRefetchRegistry }) {
+    const [refreshing, setRefreshing] = useState(false);
+
     const groups = useMemo(() => {
         const sorted = [...registry].sort(
             (a, b) =>
@@ -66,22 +68,19 @@ function TurbineField({ row, registry, onEdit }) {
     }, [registry]);
 
     const allOptions = useMemo(() => Object.values(groups).flat(), [groups]);
-    const currentMatches =
-        row.turbine && allOptions.some(o => o.name === row.turbine);
-    const [manual, setManual] = useState(false);
-    const showManual =
-        manual || (row.turbine && !currentMatches) || allOptions.length === 0;
 
     function handleSelect(e) {
         const v = e.target.value;
-        if (v === "__new__") {
-            setManual(true);
-            onEdit(row._id, "turbine", "");
-            return;
-        }
         const found = allOptions.find(o => o.name === v);
         onEdit(row._id, "turbine", v);
         if (found && found.wtg) onEdit(row._id, "wtg", found.wtg);
+    }
+
+    async function refetch() {
+        if (!onRefetchRegistry || refreshing) return;
+        setRefreshing(true);
+        await onRefetchRegistry();
+        setRefreshing(false);
     }
 
     const st = flags(row).turbine;
@@ -96,29 +95,9 @@ function TurbineField({ row, registry, onEdit }) {
             <label className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide text-muted">
                 {label} {tag}
             </label>
-            {showManual ? (
-                <div className="flex gap-1.5">
-                    <input
-                        className={`${inputBase} ${fieldStateClasses[st] || ""}`}
-                        value={row.turbine || ""}
-                        placeholder="Nuova turbina (es. Casalbore 14)"
-                        onChange={e =>
-                            onEdit(row._id, "turbine", e.target.value)
-                        }
-                    />
-                    {allOptions.length > 0 && (
-                        <button
-                            type="button"
-                            className={`${btnGhost} w-auto shrink-0 px-3`}
-                            onClick={() => setManual(false)}
-                        >
-                            <List size={16} /> Lista
-                        </button>
-                    )}
-                </div>
-            ) : (
+            <div className="flex gap-1.5">
                 <select
-                    className={`themed-select ${inputBase} ${fieldStateClasses[st] || ""}`}
+                    className={`themed-select ${inputBase} min-w-0 flex-1 ${fieldStateClasses[st] || ""}`}
                     value={row.turbine || ""}
                     onChange={handleSelect}
                 >
@@ -139,9 +118,20 @@ function TurbineField({ row, registry, onEdit }) {
                             ))}
                         </optgroup>
                     ))}
-                    <option value="__new__">+ Nuova turbina…</option>
                 </select>
-            )}
+                <button
+                    type="button"
+                    title="Aggiorna elenco turbine dal foglio"
+                    className="flex shrink-0 cursor-pointer items-center justify-center rounded-field border border-border bg-surface-2 px-3 text-text disabled:cursor-not-allowed disabled:opacity-45"
+                    onClick={refetch}
+                    disabled={refreshing}
+                >
+                    <RefreshCw
+                        size={16}
+                        className={refreshing ? "animate-spin" : ""}
+                    />
+                </button>
+            </div>
         </div>
     );
 }
@@ -178,7 +168,7 @@ function TurbNote({ row }) {
                 <div className={`${base} bg-err-bg text-err`}>
                     {w +
                         " · non presente in archivio" +
-                        " — inseriscila nel documento excel"}
+                        " — inseriscila nell'anagrafica e clicca su aggiorna qui di fianco"}
                 </div>
             );
         default:
@@ -219,6 +209,7 @@ export default function ReviewView({
     onAddManual,
     archDN,
     whLabels,
+    onRefetchRegistry,
 }) {
     if (!rows.length) return null;
     return (
@@ -282,6 +273,7 @@ export default function ReviewView({
                                 row={r}
                                 registry={registry}
                                 onEdit={onEdit}
+                                onRefetchRegistry={onRefetchRegistry}
                             />
                             <TurbNote row={r} />
                             <FieldInput

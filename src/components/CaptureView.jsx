@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Aperture, Camera, Check, Paperclip, RotateCw, X } from 'lucide-react';
+import { Aperture, Camera, Check, Paperclip, Pencil, RotateCw, X } from 'lucide-react';
 import { fileToOrientedURL, rotate90, captureFrame } from '../lib/image.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { btnGhost, btnPrimary, card, sectionTitle } from '../lib/ui.js';
 
-export default function CaptureView({ queue, onQueueChange, processing, progress, onProcessAll }) {
+export default function CaptureView({ queue, onQueueChange, processing, progress, onProcessAll, onAddManual }) {
   const toast = useToast();
   const [camOpen, setCamOpen] = useState(false);
   const videoRef = useRef(null);
@@ -90,6 +90,9 @@ export default function CaptureView({ queue, onQueueChange, processing, progress
         </label>
         <input ref={fileInRef} id="fileIn" type="file" accept="image/*" multiple hidden onChange={handleFiles} />
       </div>
+      <button className={`${btnGhost} mt-2.5`} onClick={onAddManual}>
+        <Pencil size={16} /> Inserimento manuale
+      </button>
 
       {camOpen && (
         <div className="fixed inset-0 z-200 bg-black">
